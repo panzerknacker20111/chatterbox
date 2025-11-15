@@ -305,7 +305,7 @@ class ChatterboxMultilingualTTS:
         if len(segments) == 1 and segments[0][1] == 0.0:  # Single text, no pause
             text_segment = segments[0][0]
             segment_audio = self._generate_single_segment(
-                text_segment, cfg_weight, temperature, language_id, repetition_penalty, min_p, top_p, disable_watermark
+                text_segment, language_id, cfg_weight, temperature, repetition_penalty, min_p, top_p, disable_watermark
             )
 
             # Clean artifacts (if enabled)
@@ -470,15 +470,7 @@ class ChatterboxMultilingualTTS:
         else:
             return create_silence(0.1, self.sr)
 
-
-
-
-
-
-
-
-
-    def _generate_segments_async(self, text_list, cfg_weight, temperature, language_id, repetition_penalty, min_p, top_p, disable_watermark, max_workers):
+    def _generate_segments_async(self, text_list, language_id, cfg_weight, temperature, repetition_penalty, min_p, top_p, disable_watermark, max_workers):
         """Async parallel generation of text segments - core performance optimization"""
         audio_results = [None] * len(text_list)
         result_queue = queue.Queue()
@@ -490,7 +482,7 @@ class ChatterboxMultilingualTTS:
                     text = punc_norm(text.strip())
                     # Generate audio
                     audio = self._generate_single_segment(
-                        text, cfg_weight, temperature, language_id, repetition_penalty, min_p, top_p, disable_watermark
+                        text, language_id, cfg_weight, temperature, repetition_penalty, min_p, top_p, disable_watermark
                     )
                 else:
                     audio = create_silence(0.1, self.sr)
@@ -561,13 +553,16 @@ class ChatterboxMultilingualTTS:
                     except:
                         pass  # Ignore cleanup errors
 
-    def _generate_single_segment(self, text, cfg_weight, temperature, repetition_penalty=1.2, min_p=0.05, top_p=1.0, disable_watermark=False):
+    def _generate_single_segment(self, text, language_id, cfg_weight, temperature, repetition_penalty=1.2, min_p=0.05, top_p=1.0, disable_watermark=False):
         """Generate audio for a single text segment"""
       
         # Norm and tokenize text
         text = punc_norm(text)
         text_tokens = self.tokenizer.text_to_tokens(text, language_id).to(self.device)
-        text_tokens = torch.cat([text_tokens, text_tokens], dim=0)  # Need two seqs for CFG
+
+        # Only duplicate tokens for CFG when cfg_weight > 0
+        if cfg_weight > 0.0:
+            text_tokens = torch.cat([text_tokens, text_tokens], dim=0)  # Need two seqs for CFG
 
         sot = self.t3.hp.start_text_token
         eot = self.t3.hp.stop_text_token
