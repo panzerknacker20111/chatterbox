@@ -352,7 +352,7 @@ class ChatterboxMultilingualTTS:
                 if text_segment.strip():  # Non-empty text segment
                     # 1. Generate audio segment
                     segment_audio = self._generate_single_segment(
-                        text_segment, cfg_weight, temperature, repetition_penalty, min_p, top_p, disable_watermark
+                        text_segment, language_id, cfg_weight, temperature, repetition_penalty, min_p, top_p, disable_watermark
                     )
 
                     # 2. Clean artifacts for this segment
