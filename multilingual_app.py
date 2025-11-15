@@ -1,5 +1,4 @@
 import random
-import re
 import numpy as np
 import torchaudio as ta
 import torch
@@ -229,7 +228,7 @@ def generate_tts_audio(
         set_seed(int(seed_num_input))
 
     print(f"Generating audio for text: '{text_input[:50]}...'")
-
+    
     # Handle optional audio prompt (use helper that prefers explicit user input)
     chosen_prompt = resolve_audio_prompt(language_id, audio_prompt_path_input)
 
@@ -248,9 +247,9 @@ def generate_tts_audio(
     else:
         print("No audio prompt provided; using default voice.")
         
-    # Pass the normalized text to the multilingual API (no UI-side truncation)
+    # Pass language_id explicitly per multilingual API
     wav = current_model.generate(
-        text_input[:600],
+        text_input[:300],  # Truncate text to max chars
         language_id=language_id,
         **generate_kwargs
     )
@@ -280,11 +279,10 @@ with gr.Blocks() as demo:
     with gr.Row():
         with gr.Column():
             initial_lang = "de"
-            # Multi-line text input: use lines/max_lines so users can enter longer/multi-line content
             text = gr.Textbox(
                 value=default_text_for_ui(initial_lang),
                 label="Text to synthesize (max chars 300)",
-                max_lines=10
+                max_lines=5
             )
             
             language_id = gr.Dropdown(
@@ -331,15 +329,15 @@ with gr.Blocks() as demo:
             )
 
             exaggeration = gr.Slider(
-                0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=0.4
+                0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5
             )
             cfg_weight = gr.Slider(
-                0.2, 1, step=.05, label="CFG/Pace", value=0.7
+                0.2, 1, step=.05, label="CFG/Pace", value=0.5
             )
 
             with gr.Accordion("More options", open=False):
                 seed_num = gr.Number(value=0, label="Random seed (0 for random)")
-                temp = gr.Slider(0.05, 5, step=.05, label="Temperature", value=0.1)
+                temp = gr.Slider(0.05, 5, step=.05, label="Temperature", value=.8)
 
             run_btn = gr.Button("Generate", variant="primary")
 
