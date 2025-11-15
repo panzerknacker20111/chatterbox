@@ -405,10 +405,10 @@ class ChatterboxMultilingualTTS:
     def _generate_long_text_async(
         self,
         text,
+        language_id,
         max_segment_length=300,
         cfg_weight=0.5,
         temperature=0.8,
-        language_id=language_id,
         repetition_penalty=1.2,
         min_p=0.05,
         top_p=1.0,
