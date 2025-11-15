@@ -1,4 +1,5 @@
 import random
+import re
 import numpy as np
 import torchaudio as ta
 import torch
@@ -227,7 +228,20 @@ def generate_tts_audio(
     if seed_num_input != 0:
         set_seed(int(seed_num_input))
 
-    print(f"Generating audio for text: '{text_input[:50]}...'")
+    # Normalize newlines so user-entered lines are preserved and processed.
+    # Behavior:
+    #  - Keep paragraph separation when user has an empty line (preserve \n\n)
+    #  - Convert single newlines (line breaks) into spaces so sentences are not lost
+    if text_input is None:
+        text_input = ""
+    # Normalize CRLF to LF
+    normalized = re.sub(r'\r\n', '\n', text_input)
+    # Collapse 3+ newlines into two to avoid excessive empty paragraphs
+    normalized = re.sub(r'\n{3,}', '\n\n', normalized)
+    # Replace single newlines (not part of a double-newline) with a space
+    normalized = re.sub(r'(?<!\n)\n(?!\n)', ' ', normalized).strip()
+
+    print(f"Generating audio for text (first 200 chars): '{normalized[:200]}...'")
     
     # Handle optional audio prompt (use helper that prefers explicit user input)
     chosen_prompt = resolve_audio_prompt(language_id, audio_prompt_path_input)
@@ -247,9 +261,9 @@ def generate_tts_audio(
     else:
         print("No audio prompt provided; using default voice.")
         
-    # Pass the full text_input to the multilingual API so long-text splitting logic can run
+    # Pass the normalized text to the multilingual API (no UI-side truncation)
     wav = current_model.generate(
-        text_input,  # pass full text (no UI-side truncation)
+        normalized,
         language_id=language_id,
         **generate_kwargs
     )
@@ -332,15 +346,15 @@ with gr.Blocks() as demo:
             )
 
             exaggeration = gr.Slider(
-                0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=0.4
+                0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5
             )
             cfg_weight = gr.Slider(
-                0.2, 1, step=.05, label="CFG/Pace", value=0.7
+                0.2, 1, step=.05, label="CFG/Pace", value=0.5
             )
 
             with gr.Accordion("More options", open=False):
                 seed_num = gr.Number(value=0, label="Random seed (0 for random)")
-                temp = gr.Slider(0.05, 5, step=.05, label="Temperature", value=0.1)
+                temp = gr.Slider(0.05, 5, step=.05, label="Temperature", value=.8)
 
             run_btn = gr.Button("Generate", variant="primary")
 
