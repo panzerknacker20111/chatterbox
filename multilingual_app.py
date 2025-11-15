@@ -1,5 +1,4 @@
 import random
-import re
 import numpy as np
 import torchaudio as ta
 import torch
@@ -228,20 +227,7 @@ def generate_tts_audio(
     if seed_num_input != 0:
         set_seed(int(seed_num_input))
 
-    # Normalize newlines so user-entered lines are preserved and processed.
-    # Behavior:
-    #  - Keep paragraph separation when user has an empty line (preserve \n\n)
-    #  - Convert single newlines (line breaks) into spaces so sentences are not lost
-    if text_input is None:
-        text_input = ""
-    # Normalize CRLF to LF
-    normalized = re.sub(r'\r\n', '\n', text_input)
-    # Collapse 3+ newlines into two to avoid excessive empty paragraphs
-    normalized = re.sub(r'\n{3,}', '\n\n', normalized)
-    # Replace single newlines (not part of a double-newline) with a space
-    normalized = re.sub(r'(?<!\n)\n(?!\n)', ' ', normalized).strip()
-
-    print(f"Generating audio for text (first 200 chars): '{normalized[:200]}...'")
+    print(f"Generating audio for text: '{text_input[:50]}...'")
     
     # Handle optional audio prompt (use helper that prefers explicit user input)
     chosen_prompt = resolve_audio_prompt(language_id, audio_prompt_path_input)
@@ -261,9 +247,9 @@ def generate_tts_audio(
     else:
         print("No audio prompt provided; using default voice.")
         
-    # Pass the normalized text to the multilingual API (no UI-side truncation)
+    # Pass language_id explicitly per multilingual API
     wav = current_model.generate(
-        normalized,
+        text_input[:300],  # Truncate text to max chars
         language_id=language_id,
         **generate_kwargs
     )
@@ -293,13 +279,10 @@ with gr.Blocks() as demo:
     with gr.Row():
         with gr.Column():
             initial_lang = "de"
-            # Multi-line text input: use lines/max_lines so users can enter longer/multi-line content
             text = gr.Textbox(
                 value=default_text_for_ui(initial_lang),
-                label="Text to synthesize (multi-line supported)",
-                lines=6,
-                max_lines=25,
-                placeholder="Enter the text to synthesize. You can include pause tags like [pause:0.5s]."
+                label="Text to synthesize (max chars 300)",
+                max_lines=5
             )
             
             language_id = gr.Dropdown(
