@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from safetensors.torch import load_file as load_safetensors
 from huggingface_hub import snapshot_download
 import re
-import numpy as _np
+import numpy as np
 import torchaudio
 
 from .models.t3 import T3
@@ -55,35 +55,6 @@ SUPPORTED_LANGUAGES = {
   "zh": "Chinese",
 }
 
-def _normalize_segment_to_1d_tensor(segment, sr):
-    """
-    Convert segment which may be:
-      - torch.Tensor with shape (1, samples) or (samples,)
-      - numpy array with shape (samples,) or (channels, samples)
-    to torch.Tensor shape (samples,)
-    """
-    try:
-        # If numpy ndarray -> convert to torch
-        if _np is not None and isinstance(segment, _np.ndarray):
-            seg = torch.from_numpy(segment)
-        else:
-            seg = segment
-
-        # If torchaudio.load returned (channels, samples) -> take first channel
-        if isinstance(seg, torch.Tensor):
-            if seg.dim() == 2 and seg.shape[0] >= 1:
-                seg = seg[0]  # take first channel
-            # If shape is (1, samples) -> squeeze to (samples,)
-            seg = seg.squeeze(0) if seg.dim() > 0 and seg.shape[0] == 1 else seg
-            seg = seg.flatten()
-            return seg.to(dtype=torch.float32)
-    except Exception:
-        # Best-effort fallback: try to coerce to numpy then to torch
-        try:
-            arr = _np.asarray(segment).astype(_np.float32)
-            return torch.from_numpy(arr).flatten()
-        except Exception:
-            return torch.zeros(0, dtype=torch.float32)
 
 def punc_norm(text: str) -> str:
     """
@@ -398,7 +369,7 @@ class ChatterboxMultilingualTTS:
                         if cleaned_audio_path != temp_audio_path:
                             temp_files_to_cleanup.append(cleaned_audio_path)
 
-                        # Load cleaned audio (if cleaning produced different file)
+                        # Load cleaned audio
                         try:
                             if cleaned_audio_path != temp_audio_path:
                                 cleaned_audio, _ = torchaudio.load(cleaned_audio_path)
@@ -407,28 +378,17 @@ class ChatterboxMultilingualTTS:
                             print(f"[WARNING] Unable to load cleaned audio segment: {e}")
                             # Continue using original audio segment
 
-                    # Normalize to 1D torch tensor and store
-                    norm_seg = _normalize_segment_to_1d_tensor(segment_audio, self.sr)
-                    audio_segments.append(norm_seg)
+                    audio_segments.append(segment_audio.squeeze(0))
 
                 # 3. Add pause (after artifact cleaning)
                 if pause_duration > 0:
-                    silence = create_silence(pause_duration, self.sr).squeeze(0)
-                    audio_segments.append(silence)
+                    silence = create_silence(pause_duration, self.sr)
+                    audio_segments.append(silence.squeeze(0))
 
             # 4. Concatenate all audio segments
             if audio_segments:
-                # ensure everything is a torch tensor and non-empty
-                filtered = [a for a in audio_segments if isinstance(a, torch.Tensor) and a.numel() > 0]
-                print(f"[DEBUG] Merging {len(filtered)} audio pieces (including silences). Piece sample lengths: {[int(a.numel()) for a in filtered]}")
-                if filtered:
-                    final_audio = torch.cat(filtered, dim=0)
-                    duration = final_audio.numel() / float(self.sr)
-                    print(f"[DEBUG] Final audio concatenated: total_samples={final_audio.numel()}, duration_s={duration:.2f}")
-                    return final_audio.unsqueeze(0)
-                else:
-                    print("[DEBUG] No valid audio pieces to concatenate, returning short silence.")
-                    return create_silence(0.1, self.sr)
+                final_audio = torch.cat(audio_segments, dim=0)
+                return final_audio.unsqueeze(0)
             else:
                 # If no valid audio segments, return brief silence
                 return create_silence(0.1, self.sr)
@@ -493,30 +453,20 @@ class ChatterboxMultilingualTTS:
             audio_segments = self._clean_audio_segments_batch(
                 audio_segments, ae_threshold, ae_margin
             )
+
         # Merge audio, including pauses
         final_audio_parts = []
         for i, audio in enumerate(audio_segments):
             if audio is not None:
-                # Normalize each piece
-                norm = _normalize_segment_to_1d_tensor(audio, self.sr)
-                final_audio_parts.append(norm)
+                final_audio_parts.append(audio.squeeze(0))
                 # Add pause (if any)
                 if i < len(pause_info) and pause_info[i] > 0:
-                    silence = create_silence(pause_info[i], self.sr).squeeze(0)
-                    final_audio_parts.append(silence)
+                    silence = create_silence(pause_info[i], self.sr)
+                    final_audio_parts.append(silence.squeeze(0))
 
         if final_audio_parts:
-            # Filter empty pieces and ensure torch tensors
-            filtered = [a for a in final_audio_parts if isinstance(a, torch.Tensor) and a.numel() > 0]
-            print(f"[DEBUG] _generate_long_text_async merging {len(filtered)} parts, lengths: {[int(a.numel()) for a in filtered]}")
-            if filtered:
-                final_audio = torch.cat(filtered, dim=0)
-                duration = final_audio.numel() / float(self.sr)
-                print(f"[DEBUG] _generate_long_text_async final_samples={final_audio.numel()}, duration_s={duration:.2f}")
-                return final_audio.unsqueeze(0)
-            else:
-                print("[DEBUG] _generate_long_text_async: no valid parts after filtering, returning silence.")
-                return create_silence(0.1, self.sr)
+            final_audio = torch.cat(final_audio_parts, dim=0)
+            return final_audio.unsqueeze(0)
         else:
             return create_silence(0.1, self.sr)
 
