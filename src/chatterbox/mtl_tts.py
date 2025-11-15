@@ -283,11 +283,11 @@ class ChatterboxMultilingualTTS:
             if max_workers is None:
                 max_workers = 3  # Simple default value
             return self._generate_long_text_async(
-                text, 
+                text,
+                language_id,
                 max_segment_length=max_segment_length,
                 cfg_weight=cfg_weight,
                 temperature=temperature,
-                language_id=language_id,
                 repetition_penalty=repetition_penalty,
                 min_p=min_p,
                 top_p=top_p,
@@ -352,7 +352,7 @@ class ChatterboxMultilingualTTS:
                 if text_segment.strip():  # Non-empty text segment
                     # 1. Generate audio segment
                     segment_audio = self._generate_single_segment(
-                        text_segment, cfg_weight, temperature, repetition_penalty, min_p, top_p, disable_watermark
+                        text_segment, language_id, cfg_weight, temperature, repetition_penalty, min_p, top_p, disable_watermark
                     )
 
                     # 2. Clean artifacts for this segment
@@ -444,7 +444,7 @@ class ChatterboxMultilingualTTS:
 
         # Core: async batch generation
         audio_segments = self._generate_segments_async(
-            text_parts, cfg_weight, temperature, 
+            text_parts, language_id, cfg_weight, temperature, 
             repetition_penalty, min_p, top_p, disable_watermark, max_workers
         )
 
@@ -561,7 +561,7 @@ class ChatterboxMultilingualTTS:
                     except:
                         pass  # Ignore cleanup errors
 
-    def _generate_single_segment(self, text, cfg_weight, temperature, language_id, repetition_penalty=1.2, min_p=0.05, top_p=1.0, disable_watermark=False):
+    def _generate_single_segment(self, text, cfg_weight, temperature, repetition_penalty=1.2, min_p=0.05, top_p=1.0, disable_watermark=False):
         """Generate audio for a single text segment"""
       
         # Norm and tokenize text
