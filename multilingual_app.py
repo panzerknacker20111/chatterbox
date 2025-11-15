@@ -182,12 +182,12 @@ def generate_tts_audio(
     text_input: str,
     language_id: str,
     audio_prompt_path_input: str = None,
-    exaggeration_input: float = 0.5,
-    temperature_input: float = 0.8,
-    seed_num_input: int = 0,
     audio_editor_input: bool = True,
     ae_threshold_input: float = 0.06,
     ae_margin_input: float = 0.2,
+    exaggeration_input: float = 0.5,
+    temperature_input: float = 0.8,
+    seed_num_input: int = 0,
     cfgw_input: float = 0.5
 ) -> tuple[int, np.ndarray]:
     """
@@ -229,7 +229,7 @@ def generate_tts_audio(
         "use_auto_editor": audio_editor_input,
         "ae_threshold": ae_threshold_input,
         "ae_margin": ae_margin_input,
-        "cfg_weight": cfgw_input
+        "cfg_weight": cfgw_input,
     }
     if chosen_prompt:
         generate_kwargs["audio_prompt_path"] = chosen_prompt
