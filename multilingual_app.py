@@ -280,13 +280,13 @@ with gr.Blocks() as demo:
                 elem_classes=["audio-note"]
             )
             use_auto_editor = gr.Checkbox(
-                label="Enable artifact cleaning", info="Enable artifact cleaning"
+                label="Enable artifact cleaning", info="Enable artifact cleaning", value=True
             )
             ae_threshold = gr.Slider(
-                0.01, 0.10, step=.01, label="Volume threshold", value=0.01
+                0.01, 0.10, step=.01, label="Volume threshold", value=0.06
             )
             ae_margin = gr.Slider(
-                0.2, 1, step=.1, label="Boundary protection time (seconds)", value=.1
+                0.2, 1, step=.1, label="Boundary protection time (seconds)", value=0.2
             )
             exaggeration = gr.Slider(
                 0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5
