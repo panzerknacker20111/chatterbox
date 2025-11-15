@@ -247,9 +247,9 @@ def generate_tts_audio(
     else:
         print("No audio prompt provided; using default voice.")
         
-    # Pass language_id explicitly per multilingual API
+    # Pass the full text_input to the multilingual API so long-text splitting logic can run
     wav = current_model.generate(
-        text_input[:300],  # Truncate text to max chars
+        text_input,  # pass full text (no UI-side truncation)
         language_id=language_id,
         **generate_kwargs
     )
@@ -279,10 +279,13 @@ with gr.Blocks() as demo:
     with gr.Row():
         with gr.Column():
             initial_lang = "de"
+            # Multi-line text input: use lines/max_lines so users can enter longer/multi-line content
             text = gr.Textbox(
                 value=default_text_for_ui(initial_lang),
-                label="Text to synthesize (max chars 300)",
-                max_lines=5
+                label="Text to synthesize (multi-line supported)",
+                lines=6,
+                max_lines=25,
+                placeholder="Enter the text to synthesize. You can include pause tags like [pause:0.5s]."
             )
             
             language_id = gr.Dropdown(
@@ -371,4 +374,4 @@ with gr.Blocks() as demo:
         outputs=[audio_output],
     )
 
-demo.launch(mcp_server=True, server_name="0.0.0.0")
+demo.launch(mcp_server=False, server_name="0.0.0.0")
