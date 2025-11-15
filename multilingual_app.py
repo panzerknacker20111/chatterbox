@@ -182,7 +182,6 @@ def generate_tts_audio(
     text_input: str,
     language_id: str,
     audio_prompt_path_input: str = None,
-    ae_margin_input: float = 0.2,
     exaggeration_input: float = 0.5,
     temperature_input: float = 0.8,
     seed_num_input: int = 0,
