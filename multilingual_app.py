@@ -182,6 +182,9 @@ def generate_tts_audio(
     exaggeration_input: float = 0.5,
     temperature_input: float = 0.8,
     seed_num_input: int = 0,
+    audio_editor_input: boolean = True,
+    ae_threshold_input: float = 0.06,
+    ae_margin: float = 0.2,
     cfgw_input: float = 0.5
 ) -> tuple[int, np.ndarray]:
     """
@@ -221,6 +224,9 @@ def generate_tts_audio(
         "exaggeration": exaggeration_input,
         "temperature": temperature_input,
         "cfg_weight": cfgw_input,
+        "use_auto_editor": audio_editor_input,
+        "ae_threshold": ae_threshold_input,
+        "ae_margin": ae_margin_input
     }
     if chosen_prompt:
         generate_kwargs["audio_prompt_path"] = chosen_prompt
@@ -273,7 +279,15 @@ with gr.Blocks() as demo:
                 "💡 **Note**: Ensure that the reference clip matches the specified language tag. Otherwise, language transfer outputs may inherit the accent of the reference clip's language. To mitigate this, set the CFG weight to 0.",
                 elem_classes=["audio-note"]
             )
-            
+            use_auto_editor = gr.Checkbox(
+                label="Enable artifact cleaning", info="Enable artifact cleaning"
+            )
+            ae_threshold = gr.Slider(
+                0.01, 0.10, step=.01, label="Volume threshold", value=0.01
+            )
+            ae_margin = gr.Slider(
+                0.2, 1, step=.1, label="Boundary protection time (seconds)", value=.1
+            )
             exaggeration = gr.Slider(
                 0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5
             )
@@ -306,6 +320,9 @@ with gr.Blocks() as demo:
             text,
             language_id,
             ref_wav,
+            use_auto_editor,
+            ae_threshold,
+            ae_margin,
             exaggeration,
             temp,
             seed_num,
@@ -314,4 +331,4 @@ with gr.Blocks() as demo:
         outputs=[audio_output],
     )
 
-demo.launch(mcp_server=True)
+demo.launch(mcp_server=True, server_name="0.0.0.0")
