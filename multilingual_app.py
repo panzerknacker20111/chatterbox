@@ -226,6 +226,9 @@ def generate_tts_audio(
     generate_kwargs = {
         "exaggeration": exaggeration_input,
         "temperature": temperature_input,
+        "use_auto_editor": audio_editor_input,
+        "ae_threshold": ae_threshold_input,
+        "ae_margin": ae_margin_input,
         "cfg_weight": cfgw_input
     }
     if chosen_prompt:
