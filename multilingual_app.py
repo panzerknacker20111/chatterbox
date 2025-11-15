@@ -52,7 +52,7 @@ LANGUAGE_CONFIG = {
     },
     "hi": {
         "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/hi_f1.flac",
-        "text": "पिछले महीने हमने एक नया मील का पत्थर छुआ: हमारे YouTube चैनल पर दो अरब व्यूज़।"
+        "text": "पिछले महीने हमने एक नया मील का पत्थर छुआ: हमारे YouTube चैनल पर दो अरब व्यूज।"
     },
     "it": {
         "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/it_m1.flac",
@@ -96,7 +96,7 @@ LANGUAGE_CONFIG = {
     },
     "sw": {
         "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/sw_m.flac",
-        "text": "Mwezi uliopita, tulifika hatua mpya ya maoni ya bilioni mbili kweny kituo chetu cha YouTube."
+        "text": "Mwezi uliopita, tulifika hatua mpya ya maoni ya bilioni mbili kwenye kituo chetu cha YouTube."
     },
     "tr": {
         "audio": "https://storage.googleapis.com/chatterbox-demo-samples/mtl_prompts/tr_m.flac",
@@ -143,13 +143,36 @@ def get_or_load_model():
     if MODEL is None:
         print("Model not loaded, initializing...")
         try:
+            # from_pretrained expects device (string accepted by mtl implementation)
             MODEL = ChatterboxMultilingualTTS.from_pretrained(DEVICE)
-            if hasattr(MODEL, 'to') and str(MODEL.device) != DEVICE:
-                MODEL.to(DEVICE)
-            print(f"Model loaded successfully. Internal device: {getattr(MODEL, 'device', 'N/A')}")
+            print(f"Model loaded. Declared model.device: {getattr(MODEL, 'device', 'N/A')}")
         except Exception as e:
             print(f"Error loading model: {e}")
             raise
+
+    # Ensure internal submodules are on the requested device
+    model_device = getattr(MODEL, "device", None)
+    if model_device != DEVICE:
+        print(f"Moving model internals from {model_device} to {DEVICE}...")
+        try:
+            if hasattr(MODEL, "t3"):
+                MODEL.t3.to(DEVICE)
+            if hasattr(MODEL, "s3gen"):
+                MODEL.s3gen.to(DEVICE)
+            if hasattr(MODEL, "ve"):
+                MODEL.ve.to(DEVICE)
+            # Move conditionals if present
+            if getattr(MODEL, "conds", None) is not None:
+                try:
+                    MODEL.conds = MODEL.conds.to(DEVICE)
+                except Exception:
+                    # Some Conditionals implementations accept device as string
+                    MODEL.conds.to(DEVICE)
+            MODEL.device = DEVICE
+            print("Model moved successfully.")
+        except Exception as e:
+            print(f"[WARNING] Unable to move all model parts to {DEVICE}: {e}")
+
     return MODEL
 
 # Attempt to load the model at startup.
@@ -185,24 +208,13 @@ def generate_tts_audio(
     exaggeration_input: float = 0.5,
     temperature_input: float = 0.8,
     seed_num_input: int = 0,
-    cfgw_input: float = 0.5
+    cfgw_input: float = 0.5,
+    use_auto_editor_input: bool = True,
+    ae_threshold_input: float = 0.06,
+    ae_margin_input: float = 0.2,
 ) -> tuple[int, np.ndarray]:
     """
     Generate high-quality speech audio from text using Chatterbox Multilingual model with optional reference audio styling.
-    Supported languages: English, French, German, Spanish, Italian, Portuguese, and Hindi.
-    
-    This tool synthesizes natural-sounding speech from input text. When a reference audio file 
-    is provided, it captures the speaker's voice characteristics and speaking style. The generated audio 
-    maintains the prosody, tone, and vocal qualities of the reference speaker, or uses default voice if no reference is provided.
-
-    Args:
-        text_input (str): The text to synthesize into speech (maximum 300 characters)
-        language_id (str): The language code for synthesis (eg. en, fr, de, es, it, pt, hi)
-        audio_prompt_path_input (str, optional): File path or URL to the reference audio file that defines the target voice style. Defaults to None.
-        exaggeration_input (float, optional): Controls speech expressiveness (0.25-2.0, neutral=0.5, extreme values may be unstable). Defaults to 0.5.
-        temperature_input (float, optional): Controls randomness in generation (0.05-5.0, higher=more varied). Defaults to 0.8.
-        seed_num_input (int, optional): Random seed for reproducible results (0 for random generation). Defaults to 0.
-        cfgw_input (float, optional): CFG/Pace weight controlling generation guidance (0.2-1.0). Defaults to 0.5, 0 for language transfer. 
 
     Returns:
         tuple[int, np.ndarray]: A tuple containing the sample rate (int) and the generated audio waveform (numpy.ndarray)
@@ -217,13 +229,17 @@ def generate_tts_audio(
 
     print(f"Generating audio for text: '{text_input[:50]}...'")
     
-    # Handle optional audio prompt
-    chosen_prompt = audio_prompt_path_input or default_audio_for_ui(language_id)
+    # Handle optional audio prompt (use helper that prefers explicit user input)
+    chosen_prompt = resolve_audio_prompt(language_id, audio_prompt_path_input)
 
     generate_kwargs = {
         "exaggeration": exaggeration_input,
         "temperature": temperature_input,
         "cfg_weight": cfgw_input,
+        "use_auto_editor": bool(use_auto_editor_input),
+        "ae_threshold": float(ae_threshold_input),
+        "ae_margin": float(ae_margin_input),
+        # keep defaults for other params; multilingual generate will validate language_id
     }
     if chosen_prompt:
         generate_kwargs["audio_prompt_path"] = chosen_prompt
@@ -231,19 +247,30 @@ def generate_tts_audio(
     else:
         print("No audio prompt provided; using default voice.")
         
+    # Pass language_id explicitly per multilingual API
     wav = current_model.generate(
         text_input[:300],  # Truncate text to max chars
         language_id=language_id,
         **generate_kwargs
     )
+
+    # Ensure we return numpy array
+    if isinstance(wav, torch.Tensor):
+        out = wav.squeeze(0).cpu().numpy()
+    else:
+        # assume numpy
+        out = np.asarray(wav).squeeze(0)
+
     print("Audio generation complete.")
-    return (current_model.sr, wav.squeeze(0).numpy())
+    return (current_model.sr, out)
 
 with gr.Blocks() as demo:
     gr.Markdown(
         """
         # Chatterbox Multilingual Demo
         Generate high-quality multilingual speech from text with reference audio styling, supporting 23 languages.
+
+        Tip: you can insert pauses using the tag: [pause:0.5s] — e.g. "Hello[pause:0.5s]world"
         """
     )
     
@@ -273,18 +300,34 @@ with gr.Blocks() as demo:
             )
             
             gr.Markdown(
-                "💡 **Note**: Ensure that the reference clip matches the specified language tag. Otherwise, language transfer outputs may inherit the accent of the reference clip's language. To mitigate this, set the CFG weight to 0.",
+                "💡 **Note**: Ensure that the reference clip matches the specified language tag. Otherwise, language transfer outputs may inherit the accent of the reference clip's language.",
                 elem_classes=["audio-note"]
             )
+
+            # Auto-editor controls: checkbox toggles visibility of the two sliders
+            # Start with checkbox default False -> sliders start hidden
             use_auto_editor = gr.Checkbox(
-                label="Enable artifact cleaning", info="Enable artifact cleaning", value=True
+                label="Enable artifact cleaning", info="Enable artifact cleaning", value=False
             )
             ae_threshold = gr.Slider(
-                0.01, 0.10, step=.01, label="Volume threshold", value=0.06
+                0.01, 0.10, step=.01, label="Volume threshold", value=0.06, visible=False
             )
             ae_margin = gr.Slider(
-                0.2, 1, step=.1, label="Boundary protection time (seconds)", value=0.2
+                0.2, 1, step=.1, label="Boundary protection time (seconds)", value=0.2, visible=False
             )
+
+            # Callback to show/hide the sliders based on checkbox
+            def on_toggle_auto_editor(enabled: bool):
+                # When enabled=True -> sliders visible; otherwise hidden
+                return gr.update(visible=bool(enabled)), gr.update(visible=bool(enabled))
+
+            use_auto_editor.change(
+                fn=on_toggle_auto_editor,
+                inputs=[use_auto_editor],
+                outputs=[ae_threshold, ae_margin],
+                show_progress=False
+            )
+
             exaggeration = gr.Slider(
                 0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5
             )
@@ -321,6 +364,9 @@ with gr.Blocks() as demo:
             temp,
             seed_num,
             cfg_weight,
+            use_auto_editor,
+            ae_threshold,
+            ae_margin,
         ],
         outputs=[audio_output],
     )
