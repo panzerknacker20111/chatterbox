@@ -1,7 +1,10 @@
 import random
 import numpy as np
+import torchaudio as ta
 import torch
+from chatterbox.tts import ChatterboxTTS
 from chatterbox.mtl_tts import ChatterboxMultilingualTTS, SUPPORTED_LANGUAGES
+
 import gradio as gr
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -223,10 +226,7 @@ def generate_tts_audio(
     generate_kwargs = {
         "exaggeration": exaggeration_input,
         "temperature": temperature_input,
-        "cfg_weight": cfgw_input,
-        "use_auto_editor": audio_editor_input,
-        "ae_threshold": ae_threshold_input,
-        "ae_margin": ae_margin_input
+        "cfg_weight": cfgw_input
     }
     if chosen_prompt:
         generate_kwargs["audio_prompt_path"] = chosen_prompt
