@@ -575,7 +575,7 @@ class ChatterboxMultilingualTTS:
         text_tokens = F.pad(text_tokens, (1, 0), value=sot)
         text_tokens = F.pad(text_tokens, (0, 1), value=eot)
 
-        max_new_tokens = min(6000, max(1200, int(token_len * 20)))
+        max_new_tokens = min(1200, max(300, int(token_len * 20)))
 
         # Debug info to help trace truncation problems
         try:
