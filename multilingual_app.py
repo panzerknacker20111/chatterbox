@@ -209,7 +209,7 @@ def generate_tts_audio(
     temperature_input: float = 0.8,
     seed_num_input: int = 0,
     cfgw_input: float = 0.5,
-    use_auto_editor_input: bool = True,
+    use_auto_editor_input: bool = False,
     ae_threshold_input: float = 0.06,
     ae_margin_input: float = 0.2,
 ) -> tuple[int, np.ndarray]:
@@ -249,7 +249,7 @@ def generate_tts_audio(
         
     # Pass language_id explicitly per multilingual API
     wav = current_model.generate(
-        text_input,  # Truncate text to max chars
+        text_input[:500],
         language_id=language_id,
         **generate_kwargs
     )
@@ -281,11 +281,10 @@ with gr.Blocks() as demo:
             initial_lang = "de"
             text = gr.Textbox(
                 value=default_text_for_ui(initial_lang),
-                interactive=True,
                 label="Text to synthesize (max chars 300)",
                 show_copy_button=True,
-                lines=6,
-                max_lines=20
+                lines=3,
+                max_lines=5
             )
             
             language_id = gr.Dropdown(
@@ -332,15 +331,15 @@ with gr.Blocks() as demo:
             )
 
             exaggeration = gr.Slider(
-                0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=.5
+                0.25, 2, step=.05, label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", value=0.4
             )
             cfg_weight = gr.Slider(
-                0.2, 1, step=.05, label="CFG/Pace", value=0.5
+                0.2, 1, step=.05, label="CFG/Pace", value=0.7
             )
 
             with gr.Accordion("More options", open=False):
                 seed_num = gr.Number(value=0, label="Random seed (0 for random)")
-                temp = gr.Slider(0.05, 5, step=.05, label="Temperature", value=.8)
+                temp = gr.Slider(0.05, 5, step=.05, label="Temperature", value=0.1)
 
             run_btn = gr.Button("Generate", variant="primary")
 
@@ -374,4 +373,4 @@ with gr.Blocks() as demo:
         outputs=[audio_output],
     )
 
-demo.launch(mcp_server=True, server_name="0.0.0.0")
+demo.launch(mcp_server=False, server_name="0.0.0.0")
