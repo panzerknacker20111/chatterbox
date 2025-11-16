@@ -575,10 +575,7 @@ class ChatterboxMultilingualTTS:
         text_tokens = F.pad(text_tokens, (1, 0), value=sot)
         text_tokens = F.pad(text_tokens, (0, 1), value=eot)
 
-        # Heuristic: compute max_new_tokens from token length (tokens -> speech tokens budget)
-        # Multiply by a generous factor and clamp to avoid runaway generation.
-        # Increased upper bound to reduce likelihood of truncation for long sentences.
-        max_new_tokens = min(30000, max(3000, int(token_len * 30)))
+        max_new_tokens = min(6000, max(1200, int(token_len * 20)))
 
         # Debug info to help trace truncation problems
         try:
