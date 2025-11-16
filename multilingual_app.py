@@ -249,7 +249,7 @@ def generate_tts_audio(
         
     # Pass language_id explicitly per multilingual API
     wav = current_model.generate(
-        text_input[:300],  # Truncate text to max chars
+        text_input,  # Truncate text to max chars
         language_id=language_id,
         **generate_kwargs
     )
@@ -282,7 +282,7 @@ with gr.Blocks() as demo:
             text = gr.Textbox(
                 value=default_text_for_ui(initial_lang),
                 label="Text to synthesize (max chars 300)",
-                max_lines=5
+                max_lines=25
             )
             
             language_id = gr.Dropdown(
