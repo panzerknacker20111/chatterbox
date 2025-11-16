@@ -270,13 +270,14 @@ class ChatterboxMultilingualTTS:
             assert self.conds is not None, "Please `prepare_conditionals` first or specify `audio_prompt_path`"
 
         # Update exaggeration if needed
-        if float(exaggeration) != float(self.conds.t3.emotion_adv[0, 0, 0].item()):
+        if exaggeration != self.conds.t3.emotion_adv[0, 0, 0]:
             _cond: T3Cond = self.conds.t3
             self.conds.t3 = T3Cond(
                 speaker_emb=_cond.speaker_emb,
                 cond_prompt_speech_tokens=_cond.cond_prompt_speech_tokens,
                 emotion_adv=exaggeration * torch.ones(1, 1, 1),
             ).to(device=self.device)
+
         # Long text processing: automatically determine if text needs to be split based on length
         if len(text) > max_segment_length:
             # Use async batch generation
