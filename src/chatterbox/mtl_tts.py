@@ -560,6 +560,14 @@ class ChatterboxMultilingualTTS:
         # Norm and tokenize text
         text = punc_norm(text)
         text_tokens = self.tokenizer.text_to_tokens(text, language_id).to(self.device)
+        # Determine token length BEFORE CFG duplication/padding
+        try:
+            if hasattr(text_tokens, 'dim') and text_tokens.dim() > 1:
+                token_len = int(text_tokens.shape[-1])
+            else:
+                token_len = int(text_tokens.shape[0])
+        except Exception:
+            token_len = max(1, len(text))
         text_tokens = torch.cat([text_tokens, text_tokens], dim=0)  # Need two seqs for CFG
 
         sot = self.t3.hp.start_text_token
@@ -567,11 +575,22 @@ class ChatterboxMultilingualTTS:
         text_tokens = F.pad(text_tokens, (1, 0), value=sot)
         text_tokens = F.pad(text_tokens, (0, 1), value=eot)
 
+        # Heuristic: compute max_new_tokens from token length (tokens -> speech tokens budget)
+        # Multiply by a generous factor and clamp to avoid runaway generation.
+        # Increased upper bound to reduce likelihood of truncation for long sentences.
+        max_new_tokens = min(30000, max(3000, int(token_len * 30)))
+
+        # Debug info to help trace truncation problems
+        try:
+            print(f"[DEBUG] _generate_single_segment: char_len={len(text)}, token_len={token_len}, max_new_tokens={max_new_tokens}")
+        except Exception:
+            pass
+
         with torch.inference_mode():
             speech_tokens = self.t3.inference(
                 t3_cond=self.conds.t3,
                 text_tokens=text_tokens,
-                max_new_tokens=1000,  # TODO: use the value in config
+                max_new_tokens=max_new_tokens,
                 temperature=temperature,
                 cfg_weight=cfg_weight,
                 repetition_penalty=repetition_penalty,
@@ -584,7 +603,7 @@ class ChatterboxMultilingualTTS:
             # TODO: output becomes 1D
             speech_tokens = drop_invalid_tokens(speech_tokens)
             
-            speech_tokens = speech_tokens[speech_tokens < 6561]
+			
 
             speech_tokens = speech_tokens.to(self.device)
 
@@ -594,6 +613,12 @@ class ChatterboxMultilingualTTS:
             )
             wav = wav.squeeze(0).detach().cpu().numpy()
 
+			# report produced length for debugging
+            try:
+                duration_s = len(wav) / float(self.sr)
+                print(f"[DEBUG] _generate_single_segment: produced_wav_samples={len(wav)}, duration_s={duration_s:.2f}")
+            except Exception:
+                pass
             if not disable_watermark:
                 watermarked_wav = self.watermarker.apply_watermark(wav, sample_rate=self.sr)
                 return torch.from_numpy(watermarked_wav).unsqueeze(0)
