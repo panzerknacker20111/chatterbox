@@ -249,7 +249,7 @@ def generate_tts_audio(
         
     # Pass language_id explicitly per multilingual API
     wav = current_model.generate(
-        text_input[:500],
+        text_input[:400],
         language_id=language_id,
         **generate_kwargs
     )
@@ -373,4 +373,4 @@ with gr.Blocks() as demo:
         outputs=[audio_output],
     )
 
-demo.launch(mcp_server=False, server_name="0.0.0.0")
+demo.launch(mcp_server=True, server_name="0.0.0.0")
